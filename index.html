@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stress Signal | Advanced Monitoring</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        /* --- 1. CORE VARIABLES & THEME --- */
+        :root {
+            /* DARK MODE PALETTE (Default) */
+            --bg-grad: linear-gradient(to bottom right, #0f172a, #1e3a8a);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --panel-bg: rgba(30, 41, 59, 0.8);
+            --border-color: rgba(255, 255, 255, 0.1);
+            
+            /* Status Colors */
+            --primary: #3b82f6;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            
+            /* Effects */
+            --shadow-glow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            --report-bg: rgba(30,41,59,0.6);
+            --icon-bg: rgba(59,130,246,0.15);
+        }
+
+        body.light-mode {
+            --bg-grad: linear-gradient(to bottom right, #f0f9ff, #bae6fd);
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --panel-bg: rgba(255, 255, 255, 0.9);
+            --border-color: rgba(0, 0, 0, 0.1);
+            --shadow-glow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            --report-bg: #ffffff;
+            --icon-bg: #e0f2fe;
+        }
+
+        /* --- 2. GLOBAL RESET --- */
+        * { box-sizing: border-box; transition: all 0.3s ease; }
+        
+        body {
+            margin: 0; padding: 0;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            color: var(--text-main);
+            height: 100vh;
+            overflow: hidden;
+            display: flex; flex-direction: column;
+            background: var(--bg-grad);
+        }
+
+        /* --- 3. NAVIGATION BAR --- */
+        nav {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 15px 40px;
+            background: var(--panel-bg);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border-color);
+            z-index: 100;
+        }
+
+        .brand { font-size: 1.4rem; font-weight: 800; letter-spacing: 1px; display: flex; gap: 10px; align-items: center; }
+        
+        .back-btn {
+            background: var(--panel-bg); border: 1px solid var(--border-color);
+            color: var(--text-main); padding: 8px 16px; border-radius: 30px;
+            cursor: pointer; display: flex; align-items: center; gap: 8px; font-weight: 600;
+        }
+        .back-btn:hover { background: var(--primary); color: white; border-color: var(--primary); }
+
+        /* --- 4. VIEW CONTAINER --- */
+        #stage { position: relative; flex: 1; width: 100%; height: 100%; z-index: 10; overflow: hidden; }
+
+        .view {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: none; opacity: 0; transform: scale(0.98);
+            padding: 40px;
+            flex-direction: column;
+            transition: opacity 0.4s ease, transform 0.4s ease;
+            overflow-y: auto;
+        }
+        .view.active { display: flex; opacity: 1; transform: scale(1); }
+
+        /* --- 5. HOME DASHBOARD (Banners) --- */
+        #view-home { justify-content: center; align-items: center; }
+        .banners-wrapper { display: flex; gap: 40px; flex-wrap: wrap; justify-content: center; }
+
+        .card-banner {
+            width: 320px; height: 450px;
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color); border-radius: 30px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            text-align: center; cursor: pointer; padding: 30px;
+            box-shadow: var(--shadow-glow);
+            backdrop-filter: blur(10px);
+        }
+        .card-banner:hover { transform: translateY(-10px); box-shadow: 0 20px 40px rgba(0,0,0,0.2); }
+        .card-banner i { font-size: 4.5rem; margin-bottom: 25px; color: var(--text-muted); transition: 0.3s; }
+        
+        .b-sensor:hover i { color: var(--primary); filter: drop-shadow(0 0 15px var(--primary)); }
+        .b-sim:hover i { color: var(--success); filter: drop-shadow(0 0 15px var(--success)); }
+        .b-quest:hover i { color: var(--warning); filter: drop-shadow(0 0 15px var(--warning)); }
+
+        /* --- 6. SENSOR DASHBOARD GRID --- */
+        .dash-grid {
+            display: grid; grid-template-columns: 320px 1fr 320px; gap: 30px;
+            width: 100%; max-width: 1600px; height: calc(100vh - 120px); margin: 0 auto;
+        }
+
+        .panel {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color); border-radius: 24px;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            box-shadow: var(--shadow-glow); padding: 20px;
+            backdrop-filter: blur(10px);
+        }
+
+        /* --- 7. METRICS & VISUALS --- */
+        /* Heart Animation */
+        .heart-icon { font-size: 8rem; color: rgba(150, 150, 150, 0.1); transition: 0.2s; }
+        .heart-beat { animation: pump 0.8s infinite cubic-bezier(0.215, 0.61, 0.355, 1); color: var(--danger); filter: drop-shadow(0 0 20px var(--danger)); }
+        @keyframes pump { 0% { transform: scale(1); } 15% { transform: scale(1.25); } 30% { transform: scale(1); } }
+        
+        .metric-val { font-size: 5rem; font-weight: 800; line-height: 1; margin-top: 10px; }
+        .metric-label { letter-spacing: 3px; text-transform: uppercase; font-size: 0.8rem; color: var(--text-muted); margin-top: 5px; font-weight: 700; }
+
+        /* Camera Feed */
+        .chart-wrapper { width: 100%; height: 60%; position: relative; margin-top: 20px; background: #000; border-radius: 16px; overflow: hidden; display: flex; justify-content: center; align-items: center;}
+        img#sensorFeed:not([src]), 
+img#sensorFeed[src=""] {
+    opacity: 0;
+}
+        #sensorFeed { width: 100%; height: 100%; object-fit: contain; }
+        
+        .stop-btn {
+            margin-top: 30px;
+            background: linear-gradient(135deg, var(--danger), #b91c1c);
+            color: white; border: none; padding: 16px 60px; font-size: 1.1rem; font-weight: 700;
+            border-radius: 60px; cursor: pointer; box-shadow: 0 10px 30px rgba(239, 68, 68, 0.3);
+            display: flex; align-items: center; gap: 12px; letter-spacing: 1px;
+        }
+        .stop-btn:hover { transform: translateY(-3px) scale(1.02); }
+
+        /* Gauge */
+        .gauge-container { position: relative; width: 250px; height: 125px; overflow: hidden; margin-bottom: 20px; }
+        .gauge-svg { width: 100%; height: 100%; }
+        .gauge-bg-arc { fill: none; stroke: var(--border-color); stroke-width: 20; stroke-linecap: round; }
+        .gauge-val-arc {
+            fill: none; stroke: var(--success); stroke-width: 20; stroke-linecap: round;
+            stroke-dasharray: 251; stroke-dashoffset: 251;
+            transition: stroke-dashoffset 1s ease-out, stroke 0.5s;
+            filter: drop-shadow(0 0 5px currentColor);
+        }
+        .gauge-needle {
+            position: absolute; bottom: 0; left: 50%; width: 4px; height: 110px;
+            background: var(--text-main); border-radius: 2px;
+            transform-origin: bottom center; transform: rotate(-90deg);
+            transition: transform 1s cubic-bezier(0.1, 0.9, 0.2, 1); z-index: 5;
+        }
+        .gauge-hub { position: absolute; bottom: -10px; left: 50%; transform: translateX(-50%); width: 20px; height: 20px; background: var(--text-main); border-radius: 50%; z-index: 6; }
+
+        /* --- 8. QUESTIONNAIRE --- */
+        .quest-layout { width: 90%; max-width: 1200px; display: flex; gap: 30px; margin: 0 auto; }
+        .quest-left { flex: 1; display: flex; flex-direction: column; gap: 12px; }
+        .quest-right { width: 350px; display: flex; flex-direction: column; position: sticky; top: 20px; height: 500px; }
+
+        .slider-row { background: var(--panel-bg); padding: 15px 20px; border-radius: 16px; border: 1px solid var(--border-color); }
+        .slider-header { display: flex; justify-content: space-between; margin-bottom: 8px; font-weight: 600; }
+        input[type=range] { width: 100%; accent-color: var(--primary); height: 6px; cursor: pointer; }
+        
+        .analyze-btn {
+            width: 100%; padding: 20px; background: var(--primary);
+            color: white; font-weight: 800; border: none; border-radius: 16px; cursor: pointer;
+            font-size: 1.2rem; letter-spacing: 1px; margin-top: 10px;
+        }
+
+        /* --- 9. OVERLAYS (History & Chat) --- */
+        .chat-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); backdrop-filter: blur(15px);
+            z-index: 300; display: none; justify-content: center; align-items: center;
+        }
+        .chat-box { 
+            width: 900px; height: 85vh; background: var(--panel-bg); 
+            border-radius: 24px; display: flex; flex-direction: column; 
+            border: 1px solid var(--border-color); overflow: hidden;
+        }
+        .chat-header { padding: 25px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; }
+        
+        /* Report List Items */
+        .report-item {
+            background: var(--report-bg); border: 1px solid var(--report-border);
+            padding: 16px 20px; border-radius: 16px; display: flex; align-items: center; gap: 20px;
+            margin-bottom: 12px; cursor: pointer; transition: all 0.2s;
+        }
+        .report-item:hover { transform: translateY(-2px); border-color: var(--primary); }
+        
+        .report-icon-box {
+            width: 50px; height: 50px; background: var(--icon-bg); border-radius: 12px;
+            display: flex; align-items: center; justify-content: center; font-size: 1.2rem; color: var(--primary);
+        }
+
+        /* Flying Animation */
+        .fly-icon {
+            position: fixed; z-index: 9999; font-size: 1.5rem; color: var(--success);
+            background: white; border-radius: 50%; width: 40px; height: 40px;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 0 10px rgba(0,0,0,0.2); pointer-events: none;
+            transition: all 2.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+
+        /* Theme Toggle */
+        .theme-switch {
+            position: fixed; bottom: 30px; right: 30px; width: 60px; height: 60px;
+            background: var(--panel-bg); border-radius: 50%; border: 1px solid var(--border-color);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.5rem; color: var(--warning); cursor: pointer; z-index: 200;
+        }
+
+        .view-nav { margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+
+    <nav>
+        <div class="brand"><i class="fa-solid fa-heart-pulse"></i> STRESS SIGNAL</div>
+        <div style="display: flex; gap: 15px;">
+            <button class="back-btn" id="btnReports" onclick="openReports()">
+                <i class="fa-solid fa-clock-rotate-left"></i> History
+            </button>
+            <button class="back-btn" onclick="openChat()">
+                <i class="fa-solid fa-robot"></i> Aura AI
+            </button>
+        </div>
+    </nav>
+
+    <div id="stage">
+        
+        <div id="view-home" class="view active">
+            <div class="banners-wrapper">
+                <div class="card-banner b-sensor" onclick="navTo('view-sensor')">
+                    <i class="fa-solid fa-camera-retro"></i>
+                    <h2>Live Sensor</h2>
+                    <p>Real-time PPG Stress Detection</p>
+                </div>
+                <div class="card-banner b-sim" onclick="navTo('view-sim')">
+                    <i class="fa-solid fa-chart-line"></i>
+                    <h2>Live Simulation</h2>
+                    <p>DEAP Dataset Analysis</p>
+                </div>
+                <div class="card-banner b-quest" onclick="navTo('view-quest')">
+                    <i class="fa-solid fa-clipboard-check"></i>
+                    <h2>Questionnaire</h2>
+                    <p>Manual Assessment Mode</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-sensor" class="view">
+            <div class="view-nav"><button class="back-btn" onclick="navTo('view-home')"><i class="fa-solid fa-arrow-left"></i> Dashboard</button></div>
+
+            <div class="dash-grid">
+                <div class="panel">
+                    <div class="heart-container"><i class="fa-solid fa-heart heart-icon" id="sensorHeart"></i></div>
+                    <div class="metric-val" id="sensorBPM">--</div>
+                    <div class="metric-label">Heart Rate (BPM)</div>
+                </div>
+
+                <div class="panel graph-panel">
+                    <h3>Live Camera Feed</h3>
+                    <div class="chart-wrapper">
+                        <img id="sensorFeed" src="">
+                    </div>
+                    <button class="stop-btn" id="btnStop" onclick="stopSession()">
+                        <i class="fa-solid fa-stop"></i> STOP & GENERATE REPORT
+                    </button>
+                </div>
+
+                <div class="panel">
+                    <div class="gauge-container">
+                        <svg class="gauge-svg" viewBox="0 0 200 100">
+                            <path class="gauge-bg-arc" d="M 20 100 A 80 80 0 0 1 180 100" />
+                            <path class="gauge-val-arc" id="sensorGaugeArc" d="M 20 100 A 80 80 0 0 1 180 100" />
+                        </svg>
+                        <div class="gauge-needle" id="sensorNeedle"></div>
+                        <div class="gauge-hub"></div>
+                    </div>
+                    <div class="metric-val" style="font-size: 3.5rem;" id="sensorStress">0%</div>
+                    <div class="metric-label" id="sensorStatus">Relaxed</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-sim" class="view">
+            <div class="view-nav"><button class="back-btn" onclick="navTo('view-home')"><i class="fa-solid fa-arrow-left"></i> Dashboard</button></div>
+            <div class="dash-grid">
+                <div class="panel">
+                    <h2>DEAP Data</h2>
+                    <p style="opacity:0.6;">Subject: S01</p>
+                    <div class="metric-val" style="font-size:3rem; margin-top:20px;">EEG</div>
+                    <div class="metric-label">Signal Source</div>
+                </div>
+                <div class="panel graph-panel">
+                    <h3>Simulation Stream</h3>
+                    <div class="chart-wrapper"><canvas id="simChart"></canvas></div>
+                </div>
+                <div class="panel">
+                    <div class="gauge-container">
+                        <svg class="gauge-svg" viewBox="0 0 200 100">
+                            <path class="gauge-bg-arc" d="M 20 100 A 80 80 0 0 1 180 100" />
+                            <path class="gauge-val-arc" id="simGaugeArc" d="M 20 100 A 80 80 0 0 1 180 100" />
+                        </svg>
+                        <div class="gauge-needle" id="simNeedle"></div>
+                        <div class="gauge-hub"></div>
+                    </div>
+                    <div class="metric-val" style="font-size: 3.5rem;" id="simScore">0%</div>
+                    <div class="metric-label">Predicted Stress</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-quest" class="view">
+            <div class="view-nav"><button class="back-btn" onclick="navTo('view-home')"><i class="fa-solid fa-arrow-left"></i> Dashboard</button></div>
+            <div class="quest-layout">
+                <div class="quest-left">
+                    <h2 style="margin-bottom:10px;">Comprehensive Assessment</h2>
+                    
+                    <div class="slider-row">
+                        <div class="slider-header"><span>Sleep Duration (Hours)</span><span id="txtSleep" style="color:var(--primary);">7h</span></div>
+                        <input type="range" min="0" max="12" value="7" oninput="updRange('txtSleep',this.value,'h')">
+                    </div>
+                    <div class="slider-row">
+                        <div class="slider-header"><span>Workload Intensity (1-10)</span><span id="txtWork" style="color:var(--warning);">5</span></div>
+                        <input type="range" min="1" max="10" value="5" oninput="updRange('txtWork',this.value,'')">
+                    </div>
+                    <div class="slider-row">
+                        <div class="slider-header"><span>Anxiety Level (1-10)</span><span id="txtAnx" style="color:#a855f7;">3</span></div>
+                        <input type="range" min="1" max="10" value="3" oninput="updRange('txtAnx',this.value,'')">
+                    </div>
+                    <div class="slider-row">
+    <div class="slider-header"><span>Screen Time (Hours)</span><span id="txtScreen" style="color:var(--danger);">6h</span></div>
+    <input type="range" min="0" max="16" value="6" oninput="updRange('txtScreen',this.value,'h')">
+</div>
+
+<div class="slider-row">
+    <div class="slider-header"><span>Social Isolation (1-10)</span><span id="txtIso" style="color:var(--warning);">5</span></div>
+    <input type="range" min="1" max="10" value="5" oninput="updRange('txtIso',this.value,'')">
+</div>
+
+<div class="slider-row">
+    <div class="slider-header"><span>Mental Focus (1-10)</span><span id="txtFocus" style="color:var(--primary);">7</span></div>
+    <input type="range" min="1" max="10" value="7" oninput="updRange('txtFocus',this.value,'')">
+</div>
+
+<div class="slider-row">
+    <div class="slider-header"><span>Physical Activity (Mins)</span><span id="txtPhys" style="color:var(--success);">30m</span></div>
+    <input type="range" min="0" max="120" value="30" oninput="updRange('txtPhys',this.value,'m')">
+</div>
+                    
+                    <button class="analyze-btn" onclick="calcQuest()">ANALYZE STATUS</button>
+                </div>
+
+                <div class="panel quest-right">
+                    <h2>Your Result</h2>
+                    <div class="gauge-container" style="margin-top:30px;">
+                        <svg class="gauge-svg" viewBox="0 0 200 100">
+                            <path class="gauge-bg-arc" d="M 20 100 A 80 80 0 0 1 180 100" />
+                            <path class="gauge-val-arc" id="questGaugeArc" d="M 20 100 A 80 80 0 0 1 180 100" />
+                        </svg>
+                        <div class="gauge-needle" id="questNeedle"></div>
+                        <div class="gauge-hub"></div>
+                    </div>
+                    <div class="metric-val" id="qScore">0%</div>
+                    <div class="metric-label" id="qMsg" style="font-size:1.5rem; color:var(--primary);">--</div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="theme-switch" onclick="toggleTheme()">
+        <i class="fa-solid fa-sun" id="themeIcon"></i>
+    </div>
+
+    <div class="chat-overlay" id="reportsOverlay">
+        <div class="chat-box" style="height: 70vh; max-width: 600px;">
+            <div class="chat-header">
+                <span style="font-weight: bold; font-size:1.2rem; color:var(--text-main);">
+                    <i class="fa-solid fa-clock-rotate-left"></i> Session History
+                </span>
+                <button class="back-btn" onclick="document.getElementById('reportsOverlay').style.display='none'">Close</button>
+            </div>
+            <div style="padding: 10px; overflow-y: auto; flex: 1;" id="reportsList"></div>
+        </div>
+    </div>
+
+    <div class="chat-overlay" id="chatOverlay">
+        <div class="chat-box">
+            <div class="chat-header">
+                <span style="font-weight: bold; color:var(--text-main); font-size:1.2rem;"><i class="fa-solid fa-robot"></i> Aura AI</span>
+                <button class="back-btn" onclick="document.getElementById('chatOverlay').style.display='none'">Close</button>
+            </div>
+            <div style="flex:1; padding:40px; text-align:center; color:var(--text-muted);">
+                Aura AI Chat interface initialized...
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- GLOBAL SETUP ---
+    let sensorInt = null;
+    let simInt = null;
+    let simChart = null;
+    const API_URL = "http://127.0.0.1:8000";
+
+    // --- 1. NAVIGATION & CLEANUP ---
+    function navTo(viewId) {
+        console.log("Navigating to:", viewId);
+        document.querySelectorAll('.view').forEach(el => {
+            el.classList.remove('active');
+            el.style.display = 'none'; 
+        });
+
+        stopAll();
+
+        const targetView = document.getElementById(viewId);
+        if (targetView) {
+            targetView.style.display = 'flex';
+            setTimeout(() => { targetView.classList.add('active'); }, 10);
+        }
+
+        if (viewId === 'view-sensor') initSensor();
+        if (viewId === 'view-sim') initSim();
+    }
+
+    function stopAll() {
+        if (sensorInt) { clearInterval(sensorInt); sensorInt = null; }
+        if (simInt) { clearInterval(simInt); simInt = null; }
+        const feed = document.getElementById("sensorFeed");
+        if (feed) feed.src = "";
+    }
+
+    // --- 2. LIVE SENSOR ---
+    function initSensor() {
+        const videoFeed = document.getElementById("sensorFeed");
+        videoFeed.src = `${API_URL}/video_feed`;
+        sensorInt = setInterval(async () => {
+            try {
+                const res = await fetch(`${API_URL}/get_sensor_data`);
+                const data = await res.json();
+                document.getElementById('sensorBPM').innerText = data.bpm > 0 ? data.bpm : "--";
+                const heart = document.getElementById('sensorHeart');
+                if(data.bpm > 0) { heart.classList.add('heart-beat'); heart.style.color = 'var(--danger)'; } 
+                else { heart.classList.remove('heart-beat'); }
+                document.getElementById('sensorStress').innerText = data.stress + "%";
+                const statusEl = document.getElementById('sensorStatus');
+                if(data.stress < 40) { statusEl.innerText = "Relaxed"; statusEl.style.color = "var(--success)"; }
+                else if(data.stress < 70) { statusEl.innerText = "Normal"; statusEl.style.color = "var(--warning)"; }
+                else { statusEl.innerText = "High Load"; statusEl.style.color = "var(--danger)"; }
+                updateGauge('sensorGaugeArc', 'sensorNeedle', data.stress);
+            } catch(e) { console.log("Waiting..."); }
+        }, 1000);
+    }
+
+    // --- 3. SIMULATION LOGIC ---
+    function initSim() {
+        const ctx = document.getElementById('simChart').getContext('2d');
+        if(simChart) simChart.destroy();
+        simChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: Array(20).fill(''),
+                datasets: [{ label: 'EEG Signal', data: Array(20).fill(0), borderColor: '#10b981', borderWidth: 2, tension: 0.4, pointRadius: 0 }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { display: false, min: 0, max: 100 } } }
+        });
+
+        simInt = setInterval(async () => {
+            try {
+                const res = await fetch(`${API_URL}/get_live_prediction`);
+                const data = await res.json();
+                const simStress = data.stress_score || 0; 
+                const simSignal = 50 + (simStress > 50 ? 20 : 0) + (Math.random() * 20 - 10);
+                document.getElementById('simScore').innerText = Math.round(simStress) + "%";
+                updateGauge('simGaugeArc', 'simNeedle', simStress);
+                const chartData = simChart.data.datasets[0].data;
+                chartData.shift(); chartData.push(simSignal); simChart.update();
+            } catch(e) { console.log("Sim waiting..."); }
+        }, 800);
+    }
+
+        // --- 4. QUESTIONNAIRE ---
+        function updRange(id, val, suffix) { document.getElementById(id).innerText = val + suffix; }
+        
+        function calcQuest() {
+    // 1. GET VALUES (Old + New)
+    const sleep = parseInt(document.querySelector('input[oninput*="txtSleep"]').value);
+    const work = parseInt(document.querySelector('input[oninput*="txtWork"]').value);
+    const anx = parseInt(document.querySelector('input[oninput*="txtAnx"]').value);
+    
+    // New Inputs
+    const screen = parseInt(document.querySelector('input[oninput*="txtScreen"]').value);
+    const iso = parseInt(document.querySelector('input[oninput*="txtIso"]').value);
+    const focus = parseInt(document.querySelector('input[oninput*="txtFocus"]').value);
+    const phys = parseInt(document.querySelector('input[oninput*="txtPhys"]').value);
+
+    // 2. CALCULATE SCORE (Start at 50 neutral)
+    let score = 50;
+
+    // Factors that INCREASE Stress:
+    score += (work - 5) * 3;     // High work load
+    score += (anx - 3) * 4;      // High anxiety
+    score += (screen - 4) * 2;   // High screen time (>4h is bad)
+    score += (iso - 5) * 3;      // High isolation
+
+    // Factors that DECREASE Stress (Good habits):
+    score -= (sleep - 7) * 4;    // Good sleep lowers stress
+    score -= (focus - 5) * 3;    // High focus lowers stress
+    score -= (phys - 30) * 0.5;  // High activity lowers stress
+
+    // 3. CLAMP (Keep between 0 and 100)
+    score = Math.max(0, Math.min(score, 100));
+
+    // 4. UPDATE UI
+    document.getElementById('qScore').innerText = Math.round(score) + "%";
+    updateGauge('questGaugeArc', 'questNeedle', score);
+    
+    const msg = document.getElementById('qMsg');
+    if(score < 40) { 
+        msg.innerText = "Low Stress"; 
+        msg.style.color = "var(--success)"; 
+    } else if(score < 70) { 
+        msg.innerText = "Moderate"; 
+        msg.style.color = "var(--warning)"; 
+    } else { 
+        msg.innerText = "High Stress"; 
+        msg.style.color = "var(--danger)"; 
+    }
+}
+
+        // --- 5. UTILS & HISTORY ---
+        function updateGauge(arcId, needleId, pct) {
+    // --- SAFETY FIX START ---
+    // If pct is not a number (NaN) or undefined, force it to 0
+    if (isNaN(pct) || pct === undefined || pct === null) {
+        pct = 0;
+    }
+    // --- SAFETY FIX END ---
+
+    // 1. Clamp percentage
+    let val = Math.max(0, Math.min(pct, 100));
+
+    // 2. Needle Rotation
+    const deg = (val / 100) * 180 - 90;
+    document.getElementById(needleId).style.transform = `rotate(${deg}deg)`;
+    
+    // 3. Arc Fill Logic
+    const maxDash = 251; 
+    const offset = maxDash - ((val / 100) * maxDash);
+    
+    const arcEl = document.getElementById(arcId);
+    arcEl.style.strokeDasharray = maxDash;
+    arcEl.style.strokeDashoffset = offset;
+    
+    // 4. Color Logic
+    if(val < 40) {
+        arcEl.style.stroke = "var(--success)";
+    } else if(val < 70) {
+        arcEl.style.stroke = "var(--warning)";
+    } else {
+        arcEl.style.stroke = "var(--danger)";
+    }
+}
+        async function openReports() {
+            document.getElementById('reportsOverlay').style.display = 'flex';
+            const list = document.getElementById('reportsList');
+            list.innerHTML = '<div style="text-align:center; margin-top:40px;"><i class="fa-solid fa-spinner fa-spin"></i> Loading...</div>';
+
+            try {
+                const res = await fetch(`${API_URL}/get_recent_reports`);
+                const data = await res.json();
+                list.innerHTML = "";
+                
+                if(data.length === 0) list.innerHTML = '<div style="text-align:center;">No reports found.</div>';
+
+                data.slice(0, 10).forEach(rep => {
+                    const item = document.createElement('div');
+                    item.className = 'report-item';
+                    // Change ONLY this line inside your openReports loop:
+item.onclick = () => window.open(`${API_URL}/download_report?file=report_${rep.date.replace(/ /g, "_").replace(/:/g, "-")}.pdf`, '_blank');
+                    item.innerHTML = `
+                        <div class="report-icon-box"><i class="fa-solid fa-file-pdf"></i></div>
+                        <div style="flex:1">
+                            <div style="font-weight:bold;">${rep.date}</div>
+                            <div style="font-size:0.9rem; color:var(--text-muted);">BPM: ${rep.avg_bpm} | Stress: ${rep.avg_stress}%</div>
+                        </div>
+                    `;
+                    list.appendChild(item);
+                });
+            } catch(e) { list.innerHTML = "Error loading history."; }
+        }
+
+        function animateFlyToHistory() {
+            const btn = document.getElementById('btnStop');
+            const target = document.getElementById('btnReports');
+            const flyer = document.createElement('div');
+            flyer.className = 'fly-icon';
+            flyer.innerHTML = '<i class="fa-solid fa-file-medical"></i>';
+            
+            const start = btn.getBoundingClientRect();
+            const end = target.getBoundingClientRect();
+
+            flyer.style.left = (start.left + start.width/2) + 'px';
+            flyer.style.top = (start.top + start.height/2) + 'px';
+            document.body.appendChild(flyer);
+
+            setTimeout(() => {
+                flyer.style.left = (end.left + end.width/2) + 'px';
+                flyer.style.top = (end.top + end.height/2) + 'px';
+                flyer.style.transform = 'scale(0.2)';
+                flyer.style.opacity = '0';
+            }, 50);
+            setTimeout(() => flyer.remove(), 1200);
+        }
+
+        function toggleTheme() {
+            document.body.classList.toggle('light-mode');
+            const icon = document.getElementById('themeIcon');
+            if(document.body.classList.contains('light-mode')) {
+                icon.classList.replace('fa-sun', 'fa-moon');
+            } else {
+                icon.classList.replace('fa-moon', 'fa-sun');
+            }
+        }
+        
+        function openChat() { document.getElementById('chatOverlay').style.display = 'flex'; }
+
+// --- 6. SESSION MANAGEMENT ---
+async function stopSession() {
+    const btn = document.getElementById("btnStop");
+    
+    // Stop the background data polling
+    if (sensorInt) {
+        clearInterval(sensorInt);
+        sensorInt = null;
+    }
+    
+    // Black out the camera feed
+    const feed = document.getElementById("sensorFeed");
+    if (feed) feed.src = ""; 
+
+    try {
+        const res = await fetch(`${API_URL}/stop_session`);
+        const data = await res.json();
+        
+        if(data.status === "success") {
+            animateFlyToHistory(); 
+            
+            // 1. Change button to Success state
+            btn.innerHTML = '<i class="fa-solid fa-check"></i> SAVED TO HISTORY';
+            btn.style.background = 'var(--success)';
+            btn.onclick = null; // Disable clicking during transition
+
+            // 2. WAIT 3 SECONDS, THEN PREPARE FOR NEW SESSION
+            setTimeout(() => {
+                btn.innerHTML = '<i class="fa-solid fa-play"></i> START NEW SESSION';
+                btn.style.background = 'var(--primary)'; // Turn it back to Blue
+                btn.disabled = false;
+                
+                // 3. Re-link the button to start the sensor again
+                btn.onclick = () => {
+                    navTo('view-sensor'); // This re-initializes initSensor()
+                };
+            }, 3000);
+        }
+    } catch(e) { 
+        console.error("Report error:", e); 
+        btn.disabled = false;
+    }
+}
+    </script>
+</body>
+</html>

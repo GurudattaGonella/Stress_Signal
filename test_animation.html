@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stress Signal | Clean UI</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            /* DARK MODE PALETTE */
+            /* Simple, clean dark blue gradient background */
+            --bg-grad: linear-gradient(to bottom right, #0f172a, #1e3a8a);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --panel-bg: rgba(30, 41, 59, 0.8); 
+            --border-color: rgba(255, 255, 255, 0.1);
+            --primary: #3b82f6;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --shadow-glow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        body.light-mode {
+            /* LIGHT MODE PALETTE */
+            /* Simple, clean light blue gradient background */
+            --bg-grad: linear-gradient(to bottom right, #f0f9ff, #bae6fd);
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --panel-bg: rgba(255, 255, 255, 0.9);
+            --border-color: rgba(0, 0, 0, 0.1);
+            --shadow-glow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        * { box-sizing: border-box; transition: all 0.3s ease; }
+
+        body {
+            margin: 0; padding: 0;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            color: var(--text-main);
+            height: 100vh;
+            overflow: hidden;
+            display: flex; flex-direction: column;
+            position: relative;
+
+            /* --- CLEAN BACKGROUND (Static Gradient) --- */
+            background: var(--bg-grad);
+        }
+
+        /* --- LAYOUT --- */
+        nav {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 15px 40px; 
+            background: var(--panel-bg);
+            backdrop-filter: blur(10px); 
+            border-bottom: 1px solid var(--border-color);
+            z-index: 100;
+        }
+
+        .brand { font-size: 1.4rem; font-weight: 800; letter-spacing: 1px; display: flex; gap: 10px; align-items: center; }
+        .back-btn {
+            background: var(--panel-bg); border: 1px solid var(--border-color);
+            color: var(--text-main); padding: 8px 16px; border-radius: 30px;
+            cursor: pointer; display: flex; align-items: center; gap: 8px; font-weight: 600;
+        }
+        .back-btn:hover { background: var(--primary); color: white; border-color: var(--primary); }
+
+        #stage { position: relative; flex: 1; width: 100%; height: 100%; z-index: 10; overflow: hidden; }
+
+        .view {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: none; opacity: 0; transform: scale(0.98);
+            padding: 80px 20px 40px 20px; 
+            flex-direction: column;
+            transition: opacity 0.4s ease, transform 0.4s ease;
+            overflow-y: auto;
+        }
+        .view.active { display: flex; opacity: 1; transform: scale(1); }
+        .view::-webkit-scrollbar { width: 6px; }
+        .view::-webkit-scrollbar-thumb { background: rgba(150,150,150,0.3); border-radius: 10px; }
+
+        /* --- HOME --- */
+        #view-home { justify-content: center; align-items: center; padding-top: 0; }
+        .banners-wrapper { display: flex; gap: 40px; flex-wrap: wrap; justify-content: center; }
+        
+        .card-banner {
+            width: 320px; height: 450px;
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color); border-radius: 30px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            text-align: center; cursor: pointer; padding: 30px;
+            box-shadow: var(--shadow-glow);
+            backdrop-filter: blur(10px);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        .card-banner:hover { transform: translateY(-10px); box-shadow: 0 20px 40px rgba(0,0,0,0.2); }
+        .card-banner i { font-size: 4.5rem; margin-bottom: 25px; color: var(--text-muted); transition: 0.3s; }
+        .card-banner:hover i { color: var(--primary); transform: scale(1.1); filter: drop-shadow(0 0 15px var(--primary)); }
+        
+        .b-quest:hover i { color: var(--warning); filter: drop-shadow(0 0 15px var(--warning)); }
+        .b-sim:hover i { color: var(--success); filter: drop-shadow(0 0 15px var(--success)); }
+
+        /* --- DASHBOARDS --- */
+        .dash-grid {
+            display: grid; grid-template-columns: 320px 1fr 320px; gap: 30px;
+            width: 100%; max-width: 1600px; height: calc(100vh - 120px); margin: 0 auto;
+        }
+
+        .panel {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color); border-radius: 24px;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            box-shadow: var(--shadow-glow); padding: 20px;
+            backdrop-filter: blur(10px);
+        }
+
+        /* METRICS */
+        .heart-container { margin-bottom: 30px; position: relative; } 
+        .heart-icon { font-size: 8rem; color: rgba(150, 150, 150, 0.1); transition: 0.2s; }
+        .heart-beat { animation: pump 0.8s infinite cubic-bezier(0.215, 0.61, 0.355, 1); color: var(--danger); filter: drop-shadow(0 0 20px var(--danger)); }
+        @keyframes pump { 0% { transform: scale(1); } 15% { transform: scale(1.25); } 30% { transform: scale(1); } }
+        
+        .metric-val { font-size: 5rem; font-weight: 800; line-height: 1; margin-top: 10px; }
+        .metric-label { letter-spacing: 3px; text-transform: uppercase; font-size: 0.8rem; color: var(--text-muted); margin-top: 5px; font-weight: 700; }
+
+        /* GAUGE */
+        .gauge-container { position: relative; width: 250px; height: 125px; overflow: hidden; margin-bottom: 20px; }
+        .gauge-svg { width: 100%; height: 100%; }
+        .gauge-bg-arc { fill: none; stroke: var(--border-color); stroke-width: 20; stroke-linecap: round; }
+        .gauge-val-arc { 
+            fill: none; stroke: var(--success); stroke-width: 20; stroke-linecap: round;
+            stroke-dasharray: 380; stroke-dashoffset: 380; 
+            transition: stroke-dashoffset 1s ease-out, stroke 0.5s;
+            filter: drop-shadow(0 0 5px currentColor);
+        }
+        .gauge-needle {
+            position: absolute; bottom: 0; left: 50%; width: 4px; height: 110px;
+            background: var(--text-main); border-radius: 2px;
+            transform-origin: bottom center; transform: rotate(-90deg);
+            transition: transform 1s cubic-bezier(0.1, 0.9, 0.2, 1); z-index: 5;
+        }
+        .gauge-hub { position: absolute; bottom: -10px; left: 50%; transform: translateX(-50%); width: 20px; height: 20px; background: var(--text-main); border-radius: 50%; z-index: 6; }
+
+        /* GRAPH & VIDEO */
+        .graph-panel { justify-content: flex-start; padding: 25px; position: relative; }
+        .chart-wrapper { width: 100%; height: 60%; position: relative; margin-top: 20px; }
+        
+        .cam-preview {
+            width: 160px; height: 120px;
+            position: absolute; top: 25px; right: 25px;
+            border-radius: 16px; border: 2px solid var(--border-color);
+            overflow: hidden; background: #000;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5); z-index: 20;
+        }
+        .cam-feed { width: 100%; height: 100%; object-fit: cover; }
+        
+        .cam-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7); display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            opacity: 1; transition: opacity 0.5s; pointer-events: none;
+        }
+        .finger-anim { font-size: 2.5rem; color: white; animation: fingerTap 1.5s infinite; }
+        @keyframes fingerTap { 0% { transform: translateY(10px); opacity: 0; } 50% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(0); opacity: 1; } }
+
+        .stop-btn {
+            position: absolute; bottom: 30px;
+            background: linear-gradient(135deg, var(--danger), #b91c1c);
+            color: white; border: none; padding: 16px 60px; font-size: 1.1rem; font-weight: 700;
+            border-radius: 60px; cursor: pointer; box-shadow: 0 10px 30px rgba(239, 68, 68, 0.3);
+            display: flex; align-items: center; gap: 12px; letter-spacing: 1px; transition: 0.2s;
+        }
+        .stop-btn:hover { transform: translateY(-3px) scale(1.02); box-shadow: 0 15px 50px rgba(239, 68, 68, 0.5); }
+
+        /* --- QUESTIONNAIRE --- */
+        .quest-layout { 
+            width: 90%; max-width: 1200px; display: flex; gap: 30px; 
+            margin: 0 auto; min-height: min-content; padding-bottom: 50px; 
+        }
+        .quest-left { flex: 1; display: flex; flex-direction: column; gap: 12px; }
+        .quest-right { width: 350px; display: flex; flex-direction: column; position: sticky; top: 20px; height: 500px; }
+
+        .slider-row { 
+            background: var(--panel-bg); padding: 15px 20px; 
+            border-radius: 16px; border: 1px solid var(--border-color); 
+        }
+        
+        .slider-header { display: flex; justify-content: space-between; margin-bottom: 8px; font-weight: 600; font-size: 0.95rem; }
+        input[type=range] { width: 100%; accent-color: var(--primary); height: 6px; cursor: pointer; }
+        
+        .analyze-btn { 
+            width: 100%; padding: 20px; background: var(--primary); 
+            color: white; font-weight: 800; border: none; 
+            border-radius: 16px; cursor: pointer; font-size: 1.2rem; 
+            letter-spacing: 1px; box-shadow: 0 10px 30px rgba(59, 130, 246, 0.3); 
+            margin-top: 10px; flex-shrink: 0;
+        }
+        .analyze-btn:hover { transform: translateY(-2px); box-shadow: 0 15px 40px rgba(59, 130, 246, 0.5); }
+
+        /* --- THEME TOGGLE --- */
+        .theme-switch {
+            position: fixed; bottom: 30px; right: 30px;
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            width: 60px; height: 60px; border-radius: 50%;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            font-size: 1.5rem; color: var(--warning);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            z-index: 200; backdrop-filter: blur(10px);
+            transition: 0.3s;
+        }
+        .theme-switch:hover { transform: rotate(20deg) scale(1.1); }
+
+        /* --- CHAT OVERLAY --- */
+        .chat-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); backdrop-filter: blur(15px);
+            z-index: 300; display: none; justify-content: center; align-items: center;
+        }
+        .chat-box { width: 900px; height: 85vh; background: var(--panel-bg); border-radius: 24px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 50px 100px rgba(0,0,0,0.8); border: 1px solid var(--border-color); backdrop-filter: blur(50px); }
+        .chat-header { padding: 25px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; background: rgba(0,0,0,0.2); }
+        .chat-msgs { flex: 1; padding: 40px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
+        .chat-input { padding: 25px; background: rgba(0,0,0,0.2); display: flex; gap: 15px; }
+        
+        .msg { padding: 15px 22px; border-radius: 18px; max-width: 75%; line-height: 1.6; font-size: 1.05rem; color: white; animation: popIn 0.3s ease; }
+        .msg-bot { background: rgba(255,255,255,0.1); align-self: flex-start; border-bottom-left-radius: 4px; color: var(--text-main); }
+        .msg-user { background: var(--primary); align-self: flex-end; border-bottom-right-radius: 4px; box-shadow: 0 5px 20px rgba(59, 130, 246, 0.3); color: white; }
+        @keyframes popIn { from{opacity:0; transform:translateY(10px);} to{opacity:1; transform:translateY(0);} }
+
+        .view-nav { position: absolute; top: 20px; left: 20px; z-index: 50; }
+        /* --- NAV BUTTONS --- */
+.nav-btn {
+    background: rgba(255,255,255,0.1); border: 1px solid var(--border);
+    color: var(--text-main); padding: 8px 16px; border-radius: 20px;
+    cursor: pointer; display: flex; align-items: center; gap: 8px; font-weight: 600;
+}
+.nav-btn:hover { background: var(--primary); color: white; border-color: var(--primary); }
+
+/* --- REPORTS DROPDOWN --- */
+.reports-menu {
+    position: absolute; top: 120%; right: 0; width: 300px;
+    background: var(--panel-bg); border: 1px solid var(--border);
+    border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    backdrop-filter: blur(10px); display: none; flex-direction: column;
+    z-index: 1000; overflow: hidden;
+}
+.reports-menu.show { display: flex; animation: fadeIn 0.2s ease; }
+
+.menu-header {
+    padding: 12px 15px; background: rgba(0,0,0,0.2); 
+    font-weight: bold; border-bottom: 1px solid var(--border);
+    font-size: 0.9rem; color: var(--text-muted);
+}
+.menu-list { max-height: 300px; overflow-y: auto; }
+
+.report-item {
+    padding: 12px 15px; border-bottom: 1px solid var(--border);
+    cursor: pointer; display: flex; justify-content: space-between; align-items: center;
+}
+.report-item:hover { background: rgba(255,255,255,0.05); }
+.report-item:last-child { border-bottom: none; }
+
+.r-date { font-size: 0.8rem; color: var(--text-muted); }
+.r-score { font-weight: bold; font-size: 1rem; }
+.high-stress { color: #ef4444; }
+.low-stress { color: #10b981; }
+
+/* --- MODAL --- */
+.modal-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.8); z-index: 2000;
+    display: none; justify-content: center; align-items: center;
+    backdrop-filter: blur(5px);
+}
+.modal-card {
+    background: #1e293b; width: 400px; border-radius: 20px;
+    border: 1px solid var(--border); overflow: hidden;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.5); animation: slideUp 0.3s;
+}
+.modal-header {
+    padding: 20px; background: rgba(0,0,0,0.2);
+    display: flex; justify-content: space-between; align-items: center;
+}
+.close-btn { background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer; }
+.modal-body { padding: 30px; display: flex; flex-direction: column; align-items: center; text-align: center; }
+
+.score-circle {
+    width: 120px; height: 120px; border-radius: 50%;
+    border: 8px solid var(--primary); display: flex; flex-direction: column;
+    align-items: center; justify-content: center; margin-bottom: 20px;
+    box-shadow: 0 0 20px rgba(0,0,0,0.3);
+}
+.score-circle span { font-size: 2.5rem; font-weight: 800; line-height: 1; }
+.score-circle small { font-size: 0.7rem; text-transform: uppercase; color: var(--text-muted); }
+
+.stat-grid { display: flex; gap: 20px; width: 100%; margin-bottom: 20px; }
+.stat-box { flex: 1; background: rgba(255,255,255,0.05); padding: 10px; border-radius: 10px; }
+.stat-label { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 5px; }
+.stat-val { font-weight: bold; font-size: 1.2rem; }
+
+.dl-btn {
+    width: 100%; padding: 12px; background: var(--primary); color: white;
+    border: none; border-radius: 10px; font-weight: bold; cursor: pointer;
+    margin-top: 15px; display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.dl-btn:hover { filter: brightness(1.1); }
+
+@keyframes fadeIn { from{opacity:0;} to{opacity:1;} }
+@keyframes slideUp { from{transform:translateY(20px); opacity:0;} to{transform:translateY(0); opacity:1;} }
+
+    </style>
+</head>
+<body>
+
+    <nav>
+        <div class="brand"><i class="fa-solid fa-heart-pulse"></i> STRESS SIGNAL</div>
+        <div style="display: flex; gap: 15px;">
+            <button class="back-btn" onclick="openChat()"><i class="fa-solid fa-robot"></i> Aura AI</button>
+        </div>
+        <div style="display: flex; gap: 15px; align-items: center;">
+        <div style="position: relative;">
+            <button onclick="toggleReports()" class="nav-btn">
+                <i class="fa-solid fa-file-medical"></i> Reports
+            </button>
+            
+            <div id="reportsDropdown" class="reports-menu">
+                <div class="menu-header">Recent Sessions</div>
+                <div id="reportsList" class="menu-list">
+                    <div style="padding:20px; text-align:center; color:#94a3b8;">No reports found</div>
+                </div>
+            </div>
+        </div>
+
+        <button class="nav-btn" onclick="document.body.classList.toggle('light-mode')">
+            <i class="fa-solid fa-circle-half-stroke"></i>
+        </button>
+    </div>
+    </nav>
+
+    <div id="stage">
+        
+        <div id="view-home" class="view active">
+            <div class="banners-wrapper">
+                <div class="card-banner b-sensor" onclick="navTo('view-sensor')">
+                    <i class="fa-solid fa-camera-retro"></i>
+                    <h2>Live Sensor</h2>
+                    <p>Real-time PPG Stress Detection</p>
+                </div>
+                <div class="card-banner b-sim" onclick="navTo('view-sim')">
+                    <i class="fa-solid fa-chart-line"></i>
+                    <h2>Live Simulation</h2>
+                    <p>DEAP Dataset Analysis</p>
+                </div>
+                <div class="card-banner b-quest" onclick="navTo('view-quest')">
+                    <i class="fa-solid fa-clipboard-check"></i>
+                    <h2>Questionnaire</h2>
+                    <p>Manual Assessment Mode</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-sensor" class="view">
+            <div class="view-nav"><button class="back-btn" onclick="navTo('view-home')"><i class="fa-solid fa-arrow-left"></i> Dashboard</button></div>
+
+            <div class="dash-grid">
+                <div class="panel">
+                    <div class="heart-container"><i class="fa-solid fa-heart heart-icon" id="sensorHeart"></i></div>
+                    <div class="metric-val" id="sensorBPM">--</div>
+                    <div class="metric-label">Heart Rate (BPM)</div>
+                </div>
+
+                <div class="panel graph-panel">
+                    <h3>Real-Time Vitals</h3>
+                    <div class="chart-wrapper"><canvas id="sensorChart"></canvas></div>
+                    <div class="cam-preview">
+                        <img id="sensorFeed" class="cam-feed">
+                        <div class="cam-overlay" id="fingerInst">
+                            <i class="fa-solid fa-hand-pointer finger-anim"></i>
+                            <span style="font-size:0.7rem; color:white; margin-top:5px; text-align:center;">PLACE FINGER<br>ON CAM</span>
+                        </div>
+                    </div>
+                    <button class="stop-btn" id="btnStop" onclick="stopSession()">
+                        <i class="fa-solid fa-stop"></i> STOP & GENERATE REPORT
+                    </button>
+                </div>
+
+                <div class="panel">
+                    <div class="gauge-container">
+                        <svg class="gauge-svg" viewBox="0 0 200 100">
+                            <path class="gauge-bg-arc" d="M 20 100 A 80 80 0 0 1 180 100" />
+                            <path class="gauge-val-arc" id="sensorGaugeArc" d="M 20 100 A 80 80 0 0 1 180 100" />
+                        </svg>
+                        <div class="gauge-needle" id="sensorNeedle"></div>
+                        <div class="gauge-hub"></div>
+                    </div>
+                    <div class="metric-val" style="font-size: 3.5rem;" id="sensorStress">0%</div>
+                    <div class="metric-label" id="sensorStatus">Relaxed</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-sim" class="view">
+            <div class="view-nav"><button class="back-btn" onclick="navTo('view-home')"><i class="fa-solid fa-arrow-left"></i> Dashboard</button></div>
+            <div class="dash-grid">
+                <div class="panel">
+                    <h2>DEAP Data</h2>
+                    <p style="opacity:0.6;">Subject: S01</p>
+                    <div class="metric-val" style="font-size:3rem; margin-top:20px;">EEG</div>
+                    <div class="metric-label">Signal Source</div>
+                </div>
+                <div class="panel graph-panel">
+                    <h3>Simulation Stream</h3>
+                    <div class="chart-wrapper"><canvas id="simChart"></canvas></div>
+                </div>
+                <div class="panel">
+                    <div class="gauge-container">
+                        <svg class="gauge-svg" viewBox="0 0 200 100">
+                            <path class="gauge-bg-arc" d="M 20 100 A 80 80 0 0 1 180 100" />
+                            <path class="gauge-val-arc" id="simGaugeArc" d="M 20 100 A 80 80 0 0 1 180 100" />
+                        </svg>
+                        <div class="gauge-needle" id="simNeedle"></div>
+                        <div class="gauge-hub"></div>
+                    </div>
+                    <div class="metric-val" style="font-size: 3.5rem;" id="simScore">0%</div>
+                    <div class="metric-label">Predicted Stress</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-quest" class="view">
+            <div class="view-nav"><button class="back-btn" onclick="navTo('view-home')"><i class="fa-solid fa-arrow-left"></i> Dashboard</button></div>
+            
+            <div class="quest-layout">
+                <div class="quest-left">
+                    <h2 style="margin-bottom:10px;">Comprehensive Assessment</h2>
+                    
+                    <div class="slider-row">
+                        <div class="slider-header"><span>Sleep Duration (Hours)</span><span id="txtSleep" style="color:var(--primary);">7h</span></div>
+                        <input type="range" min="0" max="12" value="7" oninput="updRange('txtSleep',this.value,'h')">
+                    </div>
+                    <div class="slider-row">
+                        <div class="slider-header"><span>Workload Intensity (1-10)</span><span id="txtWork" style="color:var(--warning);">5</span></div>
+                        <input type="range" min="1" max="10" value="5" oninput="updRange('txtWork',this.value,'')">
+                    </div>
+                    <div class="slider-row">
+                        <div class="slider-header"><span>Caffeine Intake (Cups)</span><span id="txtCaf" style="color:var(--danger);">2</span></div>
+                        <input type="range" min="0" max="10" value="2" oninput="updRange('txtCaf',this.value,'')">
+                    </div>
+                    <div class="slider-row">
+                        <div class="slider-header"><span>Anxiety Level (1-10)</span><span id="txtAnx" style="color:#a855f7;">3</span></div>
+                        <input type="range" min="1" max="10" value="3" oninput="updRange('txtAnx',this.value,'')">
+                    </div>
+                    <div class="slider-row">
+                        <div class="slider-header"><span>Physical Activity (Mins)</span><span id="txtMove" style="color:var(--success);">30m</span></div>
+                        <input type="range" min="0" max="120" value="30" oninput="updRange('txtMove',this.value,'m')">
+                    </div>
+                    <div class="slider-row">
+                        <div class="slider-header"><span>Irritability (1-10)</span><span id="txtIrr" style="color:var(--danger);">3</span></div>
+                        <input type="range" min="1" max="10" value="3" oninput="updRange('txtIrr',this.value,'')">
+                    </div>
+                    <div class="slider-row">
+                        <div class="slider-header"><span>Mental Focus (1-10)</span><span id="txtFoc" style="color:var(--primary);">7</span></div>
+                        <input type="range" min="1" max="10" value="7" oninput="updRange('txtFoc',this.value,'')">
+                    </div>
+
+                    <button class="analyze-btn" onclick="calcQuest()">ANALYZE STATUS</button>
+                </div>
+
+                <div class="panel quest-right">
+                    <h2>Your Result</h2>
+                    <div class="gauge-container" style="margin-top:30px;">
+                        <svg class="gauge-svg" viewBox="0 0 200 100">
+                            <path class="gauge-bg-arc" d="M 20 100 A 80 80 0 0 1 180 100" />
+                            <path class="gauge-val-arc" id="questGaugeArc" d="M 20 100 A 80 80 0 0 1 180 100" />
+                        </svg>
+                        <div class="gauge-needle" id="questNeedle"></div>
+                        <div class="gauge-hub"></div>
+                    </div>
+                    <div class="metric-val" id="qScore">0%</div>
+                    <div class="metric-label" id="qMsg" style="font-size:1.5rem; color:var(--primary);">--</div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="theme-switch" onclick="toggleTheme()">
+        <i class="fa-solid fa-sun" id="themeIcon"></i>
+    </div>
+
+    <div class="chat-overlay" id="chatOverlay">
+        <div class="chat-box">
+            <div class="chat-header">
+                <span style="font-weight: bold; color:var(--text-main); font-size:1.2rem;"><i class="fa-solid fa-robot"></i> Aura AI</span>
+                <button class="back-btn" onclick="document.getElementById('chatOverlay').style.display='none'">Close</button>
+            </div>
+            <div class="chat-msgs" id="chatMsgs"></div>
+            <div class="chat-input">
+                <input type="text" id="chatInp" placeholder="Type..." style="flex:1; padding:15px; border-radius:10px; border:none; outline:none;">
+                <button class="back-btn" style="background:var(--primary); color:white;" onclick="sendChat()">SEND</button>
+            </div>
+        </div>
+    </div>
+    <div id="reportModal" class="modal-overlay">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h3><i class="fa-solid fa-clipboard-check"></i> Session Analysis</h3>
+            <button onclick="closeModal()" class="close-btn">&times;</button>
+        </div>
+        
+        <div class="modal-body">
+            <div class="score-circle">
+                <span id="modalScore">--</span>
+                <small>Stress Level</small>
+            </div>
+            
+            <div class="stat-grid">
+                <div class="stat-box">
+                    <div class="stat-label">Avg BPM</div>
+                    <div class="stat-val" id="modalBPM">--</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Date</div>
+                    <div class="stat-val" id="modalDate" style="font-size:1rem;">--</div>
+                </div>
+            </div>
+
+            <p id="modalMsg" class="modal-msg">Loading details...</p>
+
+            <button id="modalDownload" class="dl-btn">
+                <i class="fa-solid fa-download"></i> Download PDF
+            </button>
+        </div>
+    </div>
+</div>
+
+    <script>
+        // --- NAVIGATION ---
+        let sensorInt, simInt;
+        function navTo(viewId) {
+            document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
+            stopAll();
+            document.getElementById(viewId).classList.add('active');
+            if(viewId === 'view-sensor') initSensor();
+            if(viewId === 'view-sim') initSim();
+        }
+        function stopAll() {
+            clearInterval(sensorInt); clearInterval(simInt);
+            document.getElementById('sensorFeed').src = "";
+        }
+
+        // --- GAUGE ---
+        function setGauge(arcId, needleId, val) {
+            const deg = -90 + (val * 1.8);
+            document.getElementById(needleId).style.transform = `translateX(-50%) rotate(${deg}deg)`;
+            let col = 'var(--success)';
+            if(val > 40) col = 'var(--warning)';
+            if(val > 70) col = 'var(--danger)';
+            const arc = document.getElementById(arcId);
+            arc.style.stroke = col;
+            const max = 251;
+            const offset = max - (val / 100 * max);
+            arc.style.strokeDasharray = max;
+            arc.style.strokeDashoffset = offset;
+        }
+
+        // --- CHARTS ---
+        const commonOptions = {
+            animation: false, responsive: true, maintainAspectRatio: false,
+            scales: { x: { display: false }, y: { display: false, min: 0, max: 100 } },
+            plugins: { legend: { display: false } },
+            elements: { line: { tension: 0.4, borderWidth: 3 }, point: { radius: 0 } }
+        };
+
+        const ctx1 = document.getElementById('sensorChart').getContext('2d');
+        const grad1 = ctx1.createLinearGradient(0, 0, 0, 400);
+        grad1.addColorStop(0, 'rgba(59, 130, 246, 0.5)'); grad1.addColorStop(1, 'rgba(59, 130, 246, 0)');
+        const sensorChart = new Chart(ctx1, { type: 'line', data: { labels: Array(50).fill(''), datasets: [{ data: Array(50).fill(50), borderColor: '#3b82f6', backgroundColor: grad1, fill: true }] }, options: commonOptions });
+
+        const ctx2 = document.getElementById('simChart').getContext('2d');
+        const grad2 = ctx2.createLinearGradient(0, 0, 0, 400);
+        grad2.addColorStop(0, 'rgba(16, 185, 129, 0.5)'); grad2.addColorStop(1, 'rgba(16, 185, 129, 0)');
+        const simChart = new Chart(ctx2, { type: 'line', data: { labels: Array(50).fill(''), datasets: [{ data: Array(50).fill(50), borderColor: '#10b981', backgroundColor: grad2, fill: true }] }, options: commonOptions });
+
+        // --- SENSOR ---
+        function initSensor() {
+            document.getElementById('sensorFeed').src = "http://127.0.0.1:8000/video_feed?t=" + Date.now();
+            sensorInt = setInterval(async () => {
+                try {
+                    const res = await fetch('http://127.0.0.1:8000/get_sensor_data');
+                    const data = await res.json();
+                    
+                    if(data.is_locked && data.bpm > 0) {
+                        document.getElementById('fingerInst').style.opacity = '0';
+                        document.getElementById('sensorBPM').innerText = data.bpm;
+                        document.getElementById('sensorStress').innerText = data.stress + "%";
+                        document.getElementById('sensorStatus').innerText = data.stress > 50 ? "High Load" : "Relaxed";
+                        document.getElementById('sensorHeart').classList.add('heart-beat');
+                        setGauge('sensorGaugeArc', 'sensorNeedle', data.stress);
+                        const arr = sensorChart.data.datasets[0].data; arr.shift(); arr.push(data.stress); sensorChart.update();
+                    } else { 
+                        document.getElementById('sensorHeart').classList.remove('heart-beat');
+                        document.getElementById('fingerInst').style.opacity = '1';
+                    }
+                } catch(e){}
+            }, 1000);
+            const btn = document.getElementById("btnStop");
+            btn.innerHTML = '<i class="fa-solid fa-stop"></i> STOP & GENERATE REPORT'; btn.disabled = false;
+        }
+
+        async function stopSession() {
+            const btn = document.getElementById("btnStop");
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> SAVING...'; btn.disabled = true; stopAll();
+            try {
+                const res = await fetch('http://127.0.0.1:8000/stop_session');
+                const data = await res.json();
+                if(data.status === "success") {
+                    const link = document.createElement('a'); link.href = data.download_url; link.download = 'Report.pdf'; document.body.appendChild(link); link.click(); document.body.removeChild(link);
+                    openChat();
+                    setTimeout(() => addMsg("bot", `Session Complete.<br><b>BPM:</b> ${data.analysis.bpm} | <b>Stress:</b> ${data.analysis.stress}%<br>${data.analysis.message}`), 500);
+                }
+            } catch(e) { alert("Error"); btn.disabled = false; }
+        }
+
+        // --- SIMULATION ---
+        function initSim() {
+            simInt = setInterval(async () => {
+                try {
+                    const res = await fetch('http://127.0.0.1:8000/get_live_prediction');
+                    const data = await res.json();
+                    const val = Math.round(data.stress_score);
+                    document.getElementById('simScore').innerText = val + "%";
+                    setGauge('simGaugeArc', 'simNeedle', val);
+                    const arr = simChart.data.datasets[0].data; arr.shift(); arr.push(val); simChart.update();
+                } catch(e){}
+            }, 800);
+        }
+
+        // --- QUESTIONNAIRE ---
+        function updRange(id, v, u) { document.getElementById(id).innerText = v + u; }
+        function calcQuest() {
+            const s = parseInt(document.getElementById('txtSleep').innerText);
+            const w = parseInt(document.getElementById('txtWork').innerText);
+            const c = parseInt(document.getElementById('txtCaf').innerText);
+            const a = parseInt(document.getElementById('txtAnx').innerText);
+            const m = parseInt(document.getElementById('txtMove').innerText); 
+            const i = parseInt(document.getElementById('txtIrr').innerText);
+            const f = parseInt(document.getElementById('txtFoc').innerText);
+
+            // LOGIC
+            let score = 50;
+            score += (w * 2); score += (c * 2); score += (a * 3); score += (i * 2);
+            score -= (s * 3); score -= (f * 2); score -= (m / 120 * 20);
+
+            if(score > 100) score = 100; if(score < 0) score = 0;
+
+            document.getElementById('qScore').innerText = Math.round(score) + "%";
+            let msg = "CALM"; if(score > 40) msg="MODERATE"; if(score > 70) msg="HIGH STRESS";
+            document.getElementById('qMsg').innerText = msg;
+            setGauge('questGaugeArc', 'questNeedle', score);
+        }
+
+        // --- CHAT ---
+        function openChat() { document.getElementById('chatOverlay').style.display = 'flex'; }
+        function addMsg(s, t) {
+            const d = document.createElement('div'); d.className = `msg msg-${s}`; d.innerHTML = t;
+            document.getElementById('chatMsgs').appendChild(d);
+        }
+        async function sendChat() {
+            const inp = document.getElementById('chatInp'); const txt = inp.value.trim(); if(!txt) return;
+            addMsg("user", txt); inp.value = "";
+            try {
+                const res = await fetch(`http://127.0.0.1:8000/chat?message=${encodeURIComponent(txt)}`);
+                const data = await res.json(); addMsg("bot", data.reply);
+            } catch(e){}
+        }
+
+        // --- THEME ---
+        function toggleTheme() {
+            document.body.classList.toggle('light-mode');
+            const icon = document.getElementById('themeIcon');
+            
+            if(document.body.classList.contains('light-mode')) {
+                icon.classList.replace('fa-sun', 'fa-moon');
+            } else {
+                icon.classList.replace('fa-moon', 'fa-sun');
+            }
+        }
+        /* --- REPORT SYSTEM --- */
+
+// 1. Toggle Dropdown
+function toggleReports() {
+    const menu = document.getElementById('reportsDropdown');
+    menu.classList.toggle('show');
+    if (menu.classList.contains('show')) {
+        fetchReports(); // Fetch fresh data when opening
+    }
+}
+
+// 2. Fetch Last 10 Reports
+async function fetchReports() {
+    const list = document.getElementById('reportsList');
+    list.innerHTML = '<div style="padding:20px; text-align:center; color:#aaa;">Loading...</div>';
+    
+    try {
+        // Replace with your actual backend endpoint
+        const res = await fetch('http://127.0.0.1:8000/get_recent_reports'); 
+        const reports = await res.json();
+        
+        list.innerHTML = ""; // Clear loader
+        
+        if (reports.length === 0) {
+            list.innerHTML = '<div style="padding:20px; text-align:center; color:#aaa;">No reports found</div>';
+            return;
+        }
+
+        reports.forEach(r => {
+            const stressClass = r.stress > 50 ? 'high-stress' : 'low-stress';
+            // Create list item
+            const item = document.createElement('div');
+            item.className = 'report-item';
+            item.onclick = () => showFullReport(r); // Click to open modal
+            item.innerHTML = `
+                <div>
+                    <div style="font-weight:600;">Session #${r.id}</div>
+                    <div class="r-date">${r.date}</div>
+                </div>
+                <div class="r-score ${stressClass}">${r.stress}%</div>
+            `;
+            list.appendChild(item);
+        });
+
+    } catch (e) {
+        console.error(e);
+        list.innerHTML = '<div style="padding:20px; text-align:center; color:#ef4444;">Error loading reports</div>';
+    }
+}
+
+// 3. Show Modal
+function showFullReport(data) {
+    document.getElementById('reportsDropdown').classList.remove('show'); // Close menu
+    document.getElementById('reportModal').style.display = 'flex'; // Open modal
+    
+    // Fill Data
+    document.getElementById('modalScore').innerText = data.stress + "%";
+    document.getElementById('modalBPM').innerText = data.bpm;
+    document.getElementById('modalDate').innerText = data.date;
+    document.getElementById('modalMsg').innerText = data.message || "Analysis complete.";
+    
+    // Color Coding
+    const circle = document.querySelector('.score-circle');
+    if(data.stress > 50) {
+        circle.style.borderColor = '#ef4444';
+        circle.style.color = '#ef4444';
+    } else {
+        circle.style.borderColor = '#10b981';
+        circle.style.color = '#10b981';
+    }
+
+    // Download Button
+    document.getElementById('modalDownload').onclick = () => {
+        window.open(data.download_url, '_blank');
+    };
+}
+
+// 4. Close Modal
+function closeModal() {
+    document.getElementById('reportModal').style.display = 'none';
+}
+
+// Close dropdown if clicking outside
+window.onclick = function(event) {
+    if (!event.target.closest('.nav-btn') && !event.target.closest('.reports-menu')) {
+        document.getElementById('reportsDropdown').classList.remove('show');
+    }
+}
+    </script>
+</body>
+</html>
+
+// contains the current code and the index.html has the updated version with current changes

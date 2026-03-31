@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stress Signal</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            /* --- LIGHT MODE VARIABLES --- */
+            --bg-color: #f0f2f5;
+            --text-color: #333;
+            --card-bg: rgba(255, 255, 255, 0.95);
+            --card-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            
+            /* 1. THEME COLOR (Royal Blue) */
+            --accent-color: #1565C0; 
+            --pulse-color: rgba(21, 101, 192, 0.4);
+            
+            /* 2. WAVE IMAGE */
+            --wave-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 320'%3E%3Cpath fill='%231565C0' fill-opacity='1' d='M0,192L48,197.3C96,203,192,213,288,229.3C384,245,480,267,576,250.7C672,235,768,181,864,181.3C960,181,1056,235,1152,234.7C1248,235,1344,181,1392,154.7L1440,128L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z'%3E%3C/path%3E%3C/svg%3E");
+            
+            --wave-opacity: 0.7; 
+        }
+
+        /* --- DARK MODE VARIABLES --- */
+        body.dark-mode {
+            --bg-color: #121212;
+            --text-color: #e0e0e0;
+            --card-bg: rgba(30, 30, 30, 0.95);
+            --card-shadow: 0 8px 32px rgba(0,0,0,0.5);
+
+            /* 1. THEME COLOR (Golden Yellow) */
+            --accent-color: #FFCA28; 
+            --pulse-color: rgba(255, 202, 40, 0.3);
+
+            /* 2. WAVE IMAGE */
+            --wave-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 320'%3E%3Cpath fill='%23FFCA28' fill-opacity='1' d='M0,192L48,197.3C96,203,192,213,288,229.3C384,245,480,267,576,250.7C672,235,768,181,864,181.3C960,181,1056,235,1152,234.7C1248,235,1344,181,1392,154.7L1440,128L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z'%3E%3C/path%3E%3C/svg%3E");
+            
+            --wave-opacity: 0.7; 
+        }
+        
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            transition: background 0.3s, color 0.3s;
+            overflow-x: hidden;
+        }
+
+        /* --- BRANDING --- */
+        .brand-logo {
+            position: fixed;
+            top: 10px;
+            left: 25px;
+            font-size: 1.5rem;
+            font-weight: 800;
+            letter-spacing: 1px;
+            color: var(--accent-color);
+            z-index: 1000;
+            text-transform: uppercase;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .brand-logo svg {
+            width: 50px;
+            height: auto;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 4;
+            stroke-linecap: round;
+        }
+
+        /* --- BACKGROUND ANIMATION (WAVE) --- */
+        .wave-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            overflow: hidden;
+            pointer-events: none;
+        }
+        .wave {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 200%;
+            height: 100%;
+            background: repeat-x; 
+            background-image: var(--wave-image);
+            opacity: var(--wave-opacity);
+            animation: moveWave 25s linear infinite;
+        }
+        @keyframes moveWave {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+
+        /* --- THEME TOGGLE --- */
+        .theme-toggle {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: var(--card-bg);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.5rem;
+            cursor: pointer;
+            z-index: 1000;
+            transition: transform 0.2s;
+            user-select: none;
+        }
+        .theme-toggle:hover { transform: scale(1.1); }
+
+        /* --- LAYOUT --- */
+        .dashboard { 
+            display: grid; grid-template-columns: 2fr 1fr; gap: 20px; 
+            width: 90%; max-width: 1200px; margin-top: 20px; z-index: 10;
+        }
+        .card { 
+            background: var(--card-bg); 
+            padding: 25px; border-radius: 15px; 
+            box-shadow: var(--card-shadow); 
+            backdrop-filter: blur(10px);
+            transition: background 0.3s;
+        }
+        h2 { margin-top: 0; color: var(--text-color); font-size: 1.2rem; }
+        
+        /* --- CONTROLS BAR --- */
+        .controls { 
+            width: 90%; max-width: 1200px; display: flex; justify-content: flex-end; 
+            align-items: center; margin-bottom: 20px; margin-top: 60px;
+            background: var(--card-bg); padding: 10px 20px; border-radius: 50px; 
+            box-shadow: var(--card-shadow); backdrop-filter: blur(5px); z-index: 10;
+        }
+        .switch { position: relative; display: inline-block; width: 50px; height: 28px; margin: 0 10px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 34px; }
+        .slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--accent-color); }
+        input:checked + .slider:before { transform: translateX(22px); }
+
+        /* --- STRESS METER --- */
+        .gauge-wrapper { position: relative; width: 100%; height: 180px; display: flex; justify-content: center; align-items: center; }
+        .stress-score { font-size: 3.5rem; font-weight: bold; color: var(--text-color); position: absolute; top: 55%; left: 50%; transform: translate(-50%, -50%); }
+        .status-badge { text-align: center; margin-top: -20px; font-weight: 600; padding: 5px 15px; border-radius: 20px; display: inline-block; }
+        
+        .high-stress { background: #ffebee; color: #d32f2f; }
+        .med-stress { background: #fff3e0; color: #ef6c00; }
+        .low-stress { background: #e8f5e9; color: #2e7d32; }
+
+        /* --- MANUAL INPUTS --- */
+        #manualMode { display: none; }
+        .input-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: 500; }
+        input[type="range"] { width: 100%; accent-color: var(--accent-color); }
+        .manual-btn { background: var(--accent-color); color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; width: 100%; font-weight: bold; }
+
+        /* =========================================
+           MODE B: SENSOR PANEL (Brand Neutral)
+           ========================================= */
+        .mode-b-btn {
+            background: transparent;
+            border: 2px solid var(--accent-color);
+            color: var(--accent-color);
+            padding: 8px 20px;
+            border-radius: 25px;
+            font-weight: bold;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+            margin-left: 20px;
+        }
+
+        .mode-b-btn:hover {
+            background: var(--accent-color);
+            color: var(--bg-color); /* Inverts on hover */
+            box-shadow: 0 0 15px var(--pulse-color);
+        }
+
+        .sensor-container {
+            width: 90%;
+            max-width: 650px;
+            margin-top: 10px;
+            margin-bottom: 10px;
+            background: var(--card-bg); /* Theme Adaptive */
+            border: 2px solid var(--accent-color);
+            border-radius: 12px;
+            padding: 10px;
+            box-shadow: 0 0 40px var(--pulse-color); /* Pulse Glow Effect */
+            overflow: hidden;
+            animation: slideIn 0.5s ease-out, softPulse 3s infinite;
+            z-index: 20;
+            text-align: center;
+        }
+
+        .sensor-instructions {
+            margin-bottom: 10px;
+            color: var(--text-color);
+            font-size: 0.9rem;
+            display: flex;
+            justify-content: space-around;
+            background: rgba(0,0,0,0.05);
+            padding: 10px;
+            border-radius: 8px;
+        }
+
+        .step { font-weight: bold; display: flex; align-items: center; gap: 5px; }
+
+        /* The Medical Video Frame */
+        .video-frame-wrapper {
+            position: relative;
+            width: 100%;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #333;
+            background: #000;
+        }
+
+        .sensor-feed {
+            width: 100%;
+            display: block;
+            /* Enhance contrast for the backend video */
+            filter: contrast(1.1) brightness(1.1); 
+        }
+
+        /* Sci-Fi Scan Line Animation */
+        .scan-line {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: rgba(0, 255, 0, 0.5);
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.8);
+            animation: scan 3s linear infinite;
+            pointer-events: none;
+        }
+
+        .sensor-footer {
+            margin-top: 8px;
+            color: var(--accent-color);
+            font-size: 0.75rem;
+            font-family: monospace;
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes softPulse {
+            0% { box-shadow: 0 0 20px var(--pulse-color); }
+            50% { box-shadow: 0 0 40px var(--pulse-color); }
+            100% { box-shadow: 0 0 20px var(--pulse-color); }
+        }
+
+        @keyframes scan {
+            0% { top: 0%; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { top: 100%; opacity: 0; }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="brand-logo">
+        Stress Signal
+        <svg viewBox="0 0 100 30" xmlns="http://www.w3.org/2000/svg">
+            <path d="M0 15 L10 15 L20 5 L30 25 L40 10 L50 20 L60 15 L100 15" />
+        </svg>
+    </div>
+
+    <div class="wave-container">
+        <div class="wave"></div>
+    </div>
+
+    <div class="theme-toggle" onclick="toggleTheme()" id="themeBtn">🌙</div>
+
+    <div class="controls">
+        <span style="margin-right: 10px; font-weight: 600;">Mode:</span>
+        <span>Clinical</span>
+        <label class="switch">
+            <input type="checkbox" id="modeToggle">
+            <span class="slider"></span>
+        </label>
+        <span>Manual</span>
+
+        <button id="sensorBtn" class="mode-b-btn" onclick="toggleSensorMode()">
+            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 18h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <span>Open Optical Sensor</span>
+        </button>
+    </div>
+
+    <div id="sensorPanel" class="sensor-container" style="display: none;">
+        
+        <div class="sensor-instructions">
+            <div class="step">1. Connect Phone Camera</div>
+            <div class="step">2. Place Finger</div>
+            <div class="step">3. Cover Flash Completely</div>
+        </div>
+
+        <div class="video-frame-wrapper">
+            <div class="scan-line"></div> <img id="videoFeed" src="" alt="Waiting for connection..." class="sensor-feed">
+        </div>
+
+        <div class="sensor-footer">
+            REAL-TIME PHOTOPLETHYSMOGRAM (PPG) WAVEFORM
+        </div>
+    </div>
+
+    <div class="dashboard">
+        <div class="card" id="graphCard">
+            <h2>🧠 Real-Time EEG Stress Analysis (User: s01)</h2>
+            <canvas id="stressChart" height="120"></canvas>
+        </div>
+
+        <div class="card" id="manualMode">
+            <h2>📝 Self-Assessment</h2>
+            
+            <div class="input-group">
+                <label>Hours of Sleep: <span id="sleepVal">7</span>h</label>
+                <input type="range" min="1" max="10" value="7" oninput="document.getElementById('sleepVal').innerText=this.value" id="sleepInput">
+            </div>
+            
+            <div class="input-group">
+                <label>Current Workload (1-10): <span id="workVal">5</span></label>
+                <input type="range" min="1" max="10" value="5" oninput="document.getElementById('workVal').innerText=this.value" id="workInput">
+            </div>
+
+            <div class="input-group">
+                <label>Daily Coffee Intake (Cups): <span id="coffeeVal">1</span></label>
+                <input type="range" min="1" max="10" value="1" oninput="document.getElementById('coffeeVal').innerText=this.value" id="coffeeInput">
+            </div>
+
+            <div class="input-group">
+                <label>Anxiety Level (1-10): <span id="anxietyVal">3</span></label>
+                <input type="range" min="1" max="10" value="3" oninput="document.getElementById('anxietyVal').innerText=this.value" id="anxietyInput">
+            </div>
+            
+            <button class="manual-btn" onclick="calculateManualStress()">Analyze My Status</button>
+        </div>
+
+        <div class="card">
+            <h2>Current Stress Level</h2>
+            <div class="gauge-wrapper">
+                <canvas id="gaugeChart"></canvas>
+                <div class="stress-score" id="stressScore">0%</div>
+            </div>
+            <div style="text-align: center;">
+                <span id="statusBadge" class="status-badge low-stress">Calm State</span>
+            </div>
+        </div>
+
+        <div class="card" style="grid-column: span 2;">
+            <h2>💡 AI Recommendations</h2>
+            <div id="recommendationText" style="font-size: 1.1rem; line-height: 1.6; opacity: 0.8;">
+                System Initializing... Waiting for data stream.
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const ctx = document.getElementById('stressChart').getContext('2d');
+        const gaugeCtx = document.getElementById('gaugeChart').getContext('2d');
+        let isManualMode = false;
+        let chartData = Array(50).fill(0);
+        
+        function toggleTheme() {
+            document.body.classList.toggle('dark-mode');
+            const btn = document.getElementById('themeBtn');
+            const isDark = document.body.classList.contains('dark-mode');
+            btn.innerText = isDark ? "☀️" : "🌙";
+            
+            let gridColor = isDark ? '#444' : '#eee';
+            stressChart.options.scales.y.grid.color = gridColor;
+            stressChart.update();
+        }
+
+        const stressChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: Array(50).fill(''),
+                datasets: [{
+                    label: 'Stress Probability (%)',
+                    data: chartData,
+                    borderColor: '#1565C0',
+                    backgroundColor: 'rgba(21, 101, 192, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 0
+                }]
+            },
+            options: { 
+                animation: false, 
+                scales: { y: { min: 0, max: 100, grid: { color: '#eee' } }, x: { display: false } },
+                plugins: { legend: { display: false } }
+            }
+        });
+
+        const gaugeChart = new Chart(gaugeCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Stress', 'Calm'],
+                datasets: [{ data: [0, 100], backgroundColor: ['#ddd', '#eee'], borderWidth: 0, cutout: '85%' }]
+            },
+            options: { plugins: { legend: { display: false }, tooltip: { enabled: false } } }
+        });
+
+        async function fetchLiveEEG() {
+            if (isManualMode) return;
+            try {
+                const response = await fetch('http://127.0.0.1:8000/get_live_prediction');
+                const data = await response.json();
+                updateDashboard(data.stress_score);
+            } catch (error) { console.log("Connecting..."); }
+        }
+
+        function updateDashboard(score) {
+            chartData.shift();
+            chartData.push(score);
+            
+            const isDark = document.body.classList.contains('dark-mode');
+            stressChart.data.datasets[0].borderColor = isDark ? '#FFA726' : '#1565C0';
+            stressChart.update();
+
+            document.getElementById('stressScore').innerText = Math.round(score) + "%";
+            const badge = document.getElementById('statusBadge');
+            const recText = document.getElementById('recommendationText');
+            
+            let color, bgGauge;
+            
+            if (score > 75) {
+                color = '#d32f2f';
+                badge.innerText = "HIGH STRESS";
+                badge.className = "status-badge high-stress";
+                recText.innerHTML = "⚠️ <b>Action Required:</b> High Beta wave activity detected. <br>Recommended: Step away from screen, drink water, or listen to <i>'Rain Sounds'</i> playlist.";
+            } 
+            else if (score > 50) {
+                color = '#ef6c00';
+                badge.innerText = "Moderate Strain";
+                badge.className = "status-badge med-stress";
+                recText.innerHTML = "⚖️ <b>Balanced:</b> Mental load is active but manageable.<br>Tip: Take a quick 5-minute stretch break.";
+            } 
+            else {
+                color = '#2ecc71';
+                badge.innerText = "Calm State";
+                badge.className = "status-badge low-stress";
+                recText.innerHTML = "✅ <b>System Normal:</b> Brain activity is stable. <br>Productivity Tip: Great time for deep work or complex problem solving.";
+            }
+
+            bgGauge = isDark ? '#333' : '#eee';
+            gaugeChart.data.datasets[0].backgroundColor = [color, bgGauge];
+            gaugeChart.data.datasets[0].data = [score, 100 - score];
+            gaugeChart.update();
+        }
+
+        function calculateManualStress() {
+            const sleep = parseInt(document.getElementById('sleepInput').value);
+            const work = parseInt(document.getElementById('workInput').value);
+            const coffee = parseInt(document.getElementById('coffeeInput').value);
+            const anxiety = parseInt(document.getElementById('anxietyInput').value);
+            
+            let score = 0;
+            if (sleep < 5) score += 30; else if (sleep < 7) score += 15;
+            score += (work * 3); 
+            score += (coffee * 2);
+            score += (anxiety * 3);
+            if (score > 100) score = 100;
+            
+            updateDashboard(score);
+        }
+
+        document.getElementById('modeToggle').addEventListener('change', function() {
+            isManualMode = this.checked;
+            document.getElementById('graphCard').style.display = isManualMode ? 'none' : 'block';
+            document.getElementById('manualMode').style.display = isManualMode ? 'block' : 'none';
+        });
+
+        // --- TOGGLE SENSOR LOGIC ---
+        function toggleSensorMode() {
+            const panel = document.getElementById('sensorPanel');
+            const videoImg = document.getElementById('videoFeed');
+            const btn = document.getElementById('sensorBtn');
+
+            if (panel.style.display === 'none') {
+                // OPEN
+                panel.style.display = 'block';
+                
+                // --- THE LAG FIX ---
+                // We wait 100ms (0.1 seconds) to let the animation start BEFORE connecting the camera
+                setTimeout(() => {
+                    videoImg.src = "http://127.0.0.1:8000/video_feed?t=" + new Date().getTime();
+                }, 100);
+                
+                btn.innerHTML = `
+                    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg> Close Sensor`;
+                // Set to Red for 'Stop' action, handling themes via inheritance if needed, 
+                // but hardcoded colors are safer for contrast
+                btn.style.borderColor = '#ef4444'; 
+                btn.style.color = '#ef4444';      
+                
+            } else {
+                panel.style.display = 'none';
+                videoImg.src = ""; 
+                
+                btn.innerHTML = `
+                    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 18h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg> Open Optical Sensor`;
+                
+                // Get current accent color from CSS variable for consistency
+                // We use empty string to revert to CSS class default (which uses the var)
+                btn.style.borderColor = ''; 
+                btn.style.color = '';      
+            }
+        }
+
+        setInterval(fetchLiveEEG, 1000);
+    </script>
+</body>
+</html>

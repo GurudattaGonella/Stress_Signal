@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<body style="margin:0; overflow:hidden; background: #000;">
+    <canvas id="c"></canvas>
+    <h1 style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:white; font-family:sans-serif; font-size:3rem;">BIO-STREAM</h1>
+    <script>
+        const c = document.getElementById('c'), ctx = c.getContext('2d');
+        let w=c.width=window.innerWidth, h=c.height=window.innerHeight;
+        let particles = Array.from({length:100}, () => ({
+            x: Math.random()*w, y: Math.random()*h, 
+            vx: Math.random()*2+1, size: Math.random()*2
+        }));
+        function loop() {
+            ctx.fillStyle = 'rgba(0,0,0,0.1)'; ctx.fillRect(0,0,w,h); // Trails
+            ctx.fillStyle = '#3b82f6';
+            particles.forEach(p => {
+                p.x += p.vx; p.y += Math.sin(p.x * 0.01) * 2;
+                if(p.x > w) p.x = 0;
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
+            });
+            requestAnimationFrame(loop);
+        }
+        loop();
+    </script>
+</body>
+</html>
