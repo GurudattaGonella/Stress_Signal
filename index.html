@@ -131,7 +131,25 @@
         .metric-label { letter-spacing: 3px; text-transform: uppercase; font-size: 0.8rem; color: var(--text-muted); margin-top: 5px; font-weight: 700; }
 
         /* Camera Feed */
-        .chart-wrapper { width: 100%; height: 60%; position: relative; margin-top: 20px; background: #000; border-radius: 16px; overflow: hidden; display: flex; justify-content: center; align-items: center;}
+        /* Camera Feed */
+        .chart-wrapper { 
+            width: 100%; height: 60%; position: relative; margin-top: 20px; 
+            background: #000; border-radius: 16px; overflow: hidden; 
+            display: flex; justify-content: center; align-items: center;
+        }
+        
+        /* Timer and Instructions */
+        .timer-display {
+            font-size: 2rem; font-weight: 800; color: var(--warning); 
+            margin-top: 10px; letter-spacing: 2px; font-variant-numeric: tabular-nums;
+        }
+        .instructions-overlay {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7); color: white; padding: 10px 20px;
+            border-radius: 30px; font-size: 0.9rem; font-weight: 600; text-align: center;
+            backdrop-filter: blur(5px); border: 1px solid rgba(255,255,255,0.2);
+            display: flex; gap: 10px; align-items: center; transition: opacity 0.5s;
+        }
         img#sensorFeed:not([src]), 
 img#sensorFeed[src=""] {
     opacity: 0;
@@ -207,13 +225,14 @@ img#sensorFeed[src=""] {
         }
 
         /* Flying Animation */
-        .fly-icon {
-            position: fixed; z-index: 9999; font-size: 1.5rem; color: var(--success);
-            background: white; border-radius: 50%; width: 40px; height: 40px;
-            display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 0 10px rgba(0,0,0,0.2); pointer-events: none;
-            transition: all 2.5s cubic-bezier(0.2, 0.8, 0.2, 1);
-        }
+        /* Flying Animation */
+.fly-icon {
+    position: fixed; z-index: 9999; font-size: 2.5rem; color: var(--primary);
+    background: var(--panel-bg); border-radius: 50%; width: 60px; height: 60px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 20px rgba(59,130,246,0.6); pointer-events: none;
+    transition: all 1.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
 
         /* Theme Toggle */
         .theme-switch {
@@ -273,14 +292,20 @@ img#sensorFeed[src=""] {
                 </div>
 
                 <div class="panel graph-panel">
-                    <h3>Live Camera Feed</h3>
-                    <div class="chart-wrapper">
-                        <img id="sensorFeed" src="">
-                    </div>
-                    <button class="stop-btn" id="btnStop" onclick="stopSession()">
-                        <i class="fa-solid fa-stop"></i> STOP & GENERATE REPORT
-                    </button>
-                </div>
+    <h3>Live Camera Feed</h3>
+    <div class="timer-display" id="sensorTimer">00:00</div>
+    
+    <div class="chart-wrapper">
+        <img id="sensorFeed" src="">
+        <div class="instructions-overlay" id="sensorInstructions">
+            <i class="fa-solid fa-fingerprint"></i> Place index finger over camera lens and hold still.
+        </div>
+    </div>
+    
+    <button class="stop-btn" id="btnStop" onclick="stopSession()">
+        <i class="fa-solid fa-stop"></i> STOP & GENERATE REPORT
+    </button>
+</div>
 
                 <div class="panel">
                     <div class="gauge-container">
@@ -447,27 +472,116 @@ img#sensorFeed[src=""] {
     }
 
     // --- 2. LIVE SENSOR ---
-    function initSensor() {
-        const videoFeed = document.getElementById("sensorFeed");
-        videoFeed.src = `${API_URL}/video_feed`;
-        sensorInt = setInterval(async () => {
-            try {
-                const res = await fetch(`${API_URL}/get_sensor_data`);
-                const data = await res.json();
-                document.getElementById('sensorBPM').innerText = data.bpm > 0 ? data.bpm : "--";
-                const heart = document.getElementById('sensorHeart');
-                if(data.bpm > 0) { heart.classList.add('heart-beat'); heart.style.color = 'var(--danger)'; } 
-                else { heart.classList.remove('heart-beat'); }
+    // --- 2. LIVE SENSOR ---
+function initSensor() {
+    const videoFeed = document.getElementById("sensorFeed");
+    const instOverlay = document.getElementById("sensorInstructions");
+    const timerDisplay = document.getElementById("sensorTimer");
+    const timerProgress = document.getElementById("timerProgress");
+    const dashCircumference = 283;
+    
+    // 1. Reset Timer & UI States completely
+    sessionSeconds = 0;
+    isTimerRunning = false;
+    if(sessionTimerInt) clearInterval(sessionTimerInt);
+    if(instructionTimeout) clearTimeout(instructionTimeout);
+    
+    timerDisplay.innerText = "00:30";
+    timerDisplay.style.color = "var(--text-main)";
+    if(timerProgress) {
+        timerProgress.style.strokeDashoffset = 0;
+        timerProgress.style.stroke = "var(--primary)";
+    }
+    
+    instOverlay.style.opacity = "1"; // Show instructions
+    updateGauge('sensorGaugeArc', 'sensorNeedle', 0); // Reset meter
+    document.getElementById('sensorStress').innerText = "0%";
+    document.getElementById('sensorBPM').innerText = "--";
+    
+    // Set a helpful waiting status
+    document.getElementById('sensorStatus').innerText = "Waiting for finger...";
+    document.getElementById('sensorStatus').style.color = "var(--text-muted)";
+
+    // Start Camera (with cache-buster to force a fresh Python connection)
+    videoFeed.src = `${API_URL}/video_feed?t=${new Date().getTime()}`;
+    
+    let pollCount = 0; // NEW: Track how many times we've asked for data
+    
+    // Start Polling
+    sensorInt = setInterval(async () => {
+        pollCount++; // Count every second that passes
+        
+        try {
+            const res = await fetch(`${API_URL}/get_sensor_data`);
+            const data = await res.json();
+            
+            // NEW FIX: Skip the first 2 seconds to let the backend clear the old session's BPM
+            if (pollCount <= 2) return; 
+            
+            // 2. TRIGGER LOGIC: Is the finger on the camera?
+            if(data.bpm > 0) { 
+                document.getElementById('sensorBPM').innerText = data.bpm;
+                document.getElementById('sensorHeart').classList.add('heart-beat'); 
+                document.getElementById('sensorHeart').style.color = 'var(--danger)';
+
+                // If timer hasn't started yet, START IT NOW
+                if (!isTimerRunning) {
+                    isTimerRunning = true;
+                    
+                    // Start the 30-second countdown
+                    sessionTimerInt = setInterval(() => {
+                        sessionSeconds++;
+                        let remaining = SESSION_LIMIT - sessionSeconds;
+                        
+                        let secs = remaining < 10 ? "0" + remaining : remaining;
+                        timerDisplay.innerText = `00:${secs}`;
+                        
+                        if (timerProgress) {
+                            let offset = (sessionSeconds / SESSION_LIMIT) * dashCircumference;
+                            timerProgress.style.strokeDashoffset = offset;
+                            
+                            if (remaining <= 5) {
+                                timerDisplay.style.color = "var(--danger)";
+                                timerProgress.style.stroke = "var(--danger)";
+                            }
+                        }
+
+                        if (sessionSeconds >= SESSION_LIMIT) {
+                            stopSession(); // Auto-stop at 0
+                        }
+                    }, 1000);
+
+                    // Start the 5-second countdown to fade out instructions
+                    instructionTimeout = setTimeout(() => {
+                        instOverlay.style.opacity = "0"; 
+                    }, 5000);
+                }
+            } else { 
+                // Finger removed / Not detected
+                document.getElementById('sensorBPM').innerText = "--";
+                document.getElementById('sensorHeart').classList.remove('heart-beat'); 
+                
+                // If they haven't started yet, make sure instructions are visible
+                if (!isTimerRunning) {
+                    instOverlay.style.opacity = "1";
+                }
+            }
+            
+            // 3. Update Gauge ONLY if the session is officially running
+            if (isTimerRunning) {
                 document.getElementById('sensorStress').innerText = data.stress + "%";
+                
                 const statusEl = document.getElementById('sensorStatus');
                 if(data.stress < 40) { statusEl.innerText = "Relaxed"; statusEl.style.color = "var(--success)"; }
                 else if(data.stress < 70) { statusEl.innerText = "Normal"; statusEl.style.color = "var(--warning)"; }
                 else { statusEl.innerText = "High Load"; statusEl.style.color = "var(--danger)"; }
+                
                 updateGauge('sensorGaugeArc', 'sensorNeedle', data.stress);
-            } catch(e) { console.log("Waiting..."); }
-        }, 1000);
-    }
+            }
 
+        } catch(e) { console.log("Waiting for sensor..."); }
+    }, 1000);
+}
     // --- 3. SIMULATION LOGIC ---
     function initSim() {
         const ctx = document.getElementById('simChart').getContext('2d');
@@ -569,7 +683,10 @@ img#sensorFeed[src=""] {
     arcEl.style.strokeDashoffset = offset;
     
     // 4. Color Logic
-    if(val < 40) {
+        // 4. Color Logic
+    if (val === 0) {
+        arcEl.style.stroke = "var(--border-color)"; // Stays neutral grey until active
+    } else if(val < 40) {
         arcEl.style.stroke = "var(--success)";
     } else if(val < 70) {
         arcEl.style.stroke = "var(--warning)";
@@ -626,7 +743,7 @@ item.onclick = () => window.open(`${API_URL}/download_report?file=report_${rep.d
                 flyer.style.transform = 'scale(0.2)';
                 flyer.style.opacity = '0';
             }, 50);
-            setTimeout(() => flyer.remove(), 1200);
+            setTimeout(() => flyer.remove(), 1300);
         }
 
         function toggleTheme() {
@@ -642,46 +759,57 @@ item.onclick = () => window.open(`${API_URL}/download_report?file=report_${rep.d
         function openChat() { document.getElementById('chatOverlay').style.display = 'flex'; }
 
 // --- 6. SESSION MANAGEMENT ---
+let sessionTimerInt = null;
+let sessionSeconds = 0;
+let isTimerRunning = false;
+let instructionTimeout = null;
+const SESSION_LIMIT = 30; // Properly locked to 30 seconds
+
 async function stopSession() {
     const btn = document.getElementById("btnStop");
     
-    // Stop the background data polling
-    if (sensorInt) {
-        clearInterval(sensorInt);
-        sensorInt = null;
-    }
+    // Stop timers, polling, and animations
+    if (sensorInt) { clearInterval(sensorInt); sensorInt = null; }
+    if (sessionTimerInt) { clearInterval(sessionTimerInt); sessionTimerInt = null; }
+    if (instructionTimeout) { clearTimeout(instructionTimeout); instructionTimeout = null; }
     
-    // Black out the camera feed
-    const feed = document.getElementById("sensorFeed");
-    if (feed) feed.src = ""; 
+    // Change button to loading state
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> GENERATING REPORT...';
+    btn.onclick = null; 
 
     try {
         const res = await fetch(`${API_URL}/stop_session`);
         const data = await res.json();
         
+        const feed = document.getElementById("sensorFeed");
+        if (feed) {
+            feed.src = "";
+            feed.removeAttribute("src"); // Forces the browser to completely drop the frozen frame
+        }
+
         if(data.status === "success") {
             animateFlyToHistory(); 
             
-            // 1. Change button to Success state
             btn.innerHTML = '<i class="fa-solid fa-check"></i> SAVED TO HISTORY';
             btn.style.background = 'var(--success)';
-            btn.onclick = null; // Disable clicking during transition
 
-            // 2. WAIT 3 SECONDS, THEN PREPARE FOR NEW SESSION
             setTimeout(() => {
                 btn.innerHTML = '<i class="fa-solid fa-play"></i> START NEW SESSION';
-                btn.style.background = 'var(--primary)'; // Turn it back to Blue
+                btn.style.background = 'var(--primary)';
                 btn.disabled = false;
                 
-                // 3. Re-link the button to start the sensor again
                 btn.onclick = () => {
-                    navTo('view-sensor'); // This re-initializes initSensor()
+                    btn.innerHTML = '<i class="fa-solid fa-stop"></i> STOP & GENERATE REPORT';
+                    btn.style.background = 'linear-gradient(135deg, var(--danger), #b91c1c)';
+                    btn.onclick = stopSession;
+                    
+                    initSensor();
                 };
-            }, 3000);
+            }, 2500);
         }
     } catch(e) { 
         console.error("Report error:", e); 
-        btn.disabled = false;
+        btn.innerHTML = 'ERROR. TRY AGAIN';
     }
 }
     </script>

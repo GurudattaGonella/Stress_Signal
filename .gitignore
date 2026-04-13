@@ -7,3 +7,4 @@ Data/
 *.zip
 *.db
 .env
+reports/*.pdf
